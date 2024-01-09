@@ -1,0 +1,45 @@
+[package]
+name       = "bogger"
+version    = "0.1.0"
+edition    = "2021"
+license    = "BlueOak-1.0.0"
+repository = "https://github.com/twittner/bogger"
+keywords   = ["logging", "binary"]
+
+[features]
+executable = ["clap", "tracing-subscriber", "tokio/rt-multi-thread"]
+
+[dependencies]
+bytes        = "1.5.0"
+crc          = "3.0.1"
+futures-util = "0.3.30"
+minicbor     = { version = "0.20.0", features = ["std", "derive", "half"] }
+minicbor-io  = { version = "0.15.0", features = ["async-io"] }
+thiserror    = "1.0.56"
+tokio        = { version = "1.35.1", features = ["fs", "io-util", "macros", "net", "rt", "time"] }
+tokio-util   = { version = "0.7.10", features = ["compat"] }
+tracing      = "0.1.40"
+
+# optional dependencies
+
+[dependencies.clap]
+version  = "4.4.14"
+optional = true
+features = ["derive"]
+
+[dependencies.tracing-subscriber]
+version  = "0.3.18"
+optional = true
+features = ["env-filter"]
+
+[dev-dependencies]
+quickcheck = "1.0.3"
+rand       = "0.8.5"
+
+[[bin]]
+name = "logcat"
+required-features = ["executable"]
+
+[[bin]]
+name = "forwarder"
+required-features = ["executable"]
