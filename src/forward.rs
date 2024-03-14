@@ -17,8 +17,7 @@ type Writer = AsyncWriter<Compat<OwnedWriteHalf>>;
 pub struct Forwarder {
     id: String,
     directory: PathBuf,
-    address: String,
-    latest: BlockNum
+    address: String
 }
 
 impl Forwarder {
@@ -31,18 +30,27 @@ impl Forwarder {
         if !path.is_dir() {
             return Err(ForwardError::NoDir(path))
         }
-        let latest = latest_block_number(&path).await?;
         Ok(Self {
             id: id.to_string(),
             directory: path,
-            address: address.to_string(),
-            latest
+            address: address.to_string()
         })
     }
 
     pub async fn go(self) -> ! {
         loop {
-            let (r, w, s) = self.connect().await;
+            let latest = match latest_block_number(&self.directory).await {
+                Ok(number) => {
+                    debug!(%number, "latest block number");
+                    number
+                }
+                Err(err) => {
+                    error!(path = ?self.directory, %err, "failed to read latest block number");
+                    sleep(Duration::from_secs(5)).await;
+                    continue
+                }
+            };
+            let (r, w, s) = self.connect(latest).await;
             let forwarder = spawn(forward(self.directory.clone(), w, s));
             let receiver  = spawn(handle_acks(self.directory.clone(), r));
             match future::select(forwarder, receiver).await {
@@ -73,7 +81,7 @@ impl Forwarder {
         }
     }
 
-    async fn connect(&self) -> (Reader, Writer, BlockInfo) {
+    async fn connect(&self, latest: BlockNum) -> (Reader, Writer, BlockInfo) {
         let mut delays = [1, 1, 1, 1, 1, 5, 5, 5, 5, 5].into_iter().chain(repeat(10));
         loop {
             debug!(addr = %self.address, "connecting...");
@@ -84,7 +92,7 @@ impl Forwarder {
                     let (r, w) = s.into_split();
                     let mut r = AsyncReader::new(r.compat());
                     let mut w = AsyncWriter::new(w.compat_write());
-                    if let Err(err) = w.write(Handshake::new(&self.id, self.latest)).await {
+                    if let Err(err) = w.write(Handshake::new(&self.id, latest)).await {
                         error!(%err, remote = ?addr, "failed to send handshake");
                         continue
                     }
